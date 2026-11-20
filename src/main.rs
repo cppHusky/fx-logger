@@ -4,12 +4,20 @@ mod fetch;
 mod output;
 
 use anyhow::Context;
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 
 use crate::config::HistoryDirection;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+enum OutputStyle {
+    Terminal,
+    Waybar,
+    #[value(name = "ntfy")]
+    Ntfy,
+}
+
 #[derive(Parser, Debug)]
-#[command(name = "cash-rate-logger", about = "cash rate with cache")]
+#[command(name = "fx-logger", about = "FX rate logger backed by PostgreSQL")]
 struct Cli {
     #[command(subcommand)]
     command: Option<Command>,

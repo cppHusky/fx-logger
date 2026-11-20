@@ -1,10 +1,10 @@
 [package]
-name = "cash-rate-logger"
-version = "0.2.3"
+name = "fx-logger"
+version = "1.0.0"
 authors = ["cppHusky <cpphusky@outlook.com>"]
 edition = "2021"
-description = "A cached cash rate logger"
-repository = "https://github.com/cppHusky/cash-rate-logger"
+description = "A PostgreSQL-backed cash rate logger"
+repository = "https://github.com/cppHusky/fx-logger"
 license-file = "LICENSE"
 
 [dependencies]
