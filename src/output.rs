@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use serde::Serialize;
 
 use crate::cache::CacheEntry;
@@ -34,20 +36,26 @@ fn compute_rates(
 ) -> anyhow::Result<Vec<(String, f64)>> {
     let base_rate = base_rate(entry, base)?;
 
-    let mut results: Vec<(String, f64)> = entry
-        .rates
-        .iter()
-        .filter(|(code, _)| {
-            if let Some(ref filter) = output_filter {
-                filter.contains(code)
-            } else {
-                true
+    let mut results = Vec::new();
+    if let Some(filter) = output_filter {
+        let mut included = HashSet::new();
+        for code in filter {
+            if included.insert(code) {
+                if let Some(rate) = entry.rates.get(code) {
+                    results.push((code.clone(), 100.0 * rate / base_rate));
+                }
             }
-        })
-        .map(|(code, rate)| (code.clone(), 100.0 * rate / base_rate))
-        .collect();
+        }
+    } else {
+        results.extend(
+            entry
+                .rates
+                .iter()
+                .map(|(code, rate)| (code.clone(), 100.0 * rate / base_rate)),
+        );
+        results.sort_by(|a, b| a.0.cmp(&b.0));
+    }
 
-    results.sort_by(|a, b| a.0.cmp(&b.0));
     Ok(results)
 }
 
@@ -172,19 +180,7 @@ pub fn format_waybar(
     output_filter: &Option<Vec<String>>,
     history_config: Option<&HistoryConfig>,
 ) -> anyhow::Result<String> {
-    let mut rates = compute_rates(entry, base, output_filter)?;
-    if let Some(filter) = output_filter {
-        let ordered_rates: Vec<(String, f64)> = filter
-            .iter()
-            .filter_map(|currency| rates.iter().find(|(code, _)| code == currency).cloned())
-            .fold(Vec::new(), |mut ordered, rate| {
-                if !ordered.iter().any(|(code, _)| code == &rate.0) {
-                    ordered.push(rate);
-                }
-                ordered
-            });
-        rates = ordered_rates;
-    }
+    let rates = compute_rates(entry, base, output_filter)?;
 
     let history_comparisons = history_config.map(|config| {
         rates
@@ -206,15 +202,15 @@ pub fn format_waybar(
         })
     };
 
-    let first_rate = rates.first();
-    let first = first_rate
-        .map(|(c, v)| {
-            let history = history_config
-                .map(|config| history_suffix(config, comparison_for(c)))
-                .unwrap_or_default();
-            format!("{}: {:.3} ({:.3}) {}", c, v, 10000. / v, history)
+    let alert_count = history_comparisons
+        .as_ref()
+        .map(|comparisons| {
+            comparisons
+                .iter()
+                .filter(|(_, comparison)| comparison.map(|value| value.matched).unwrap_or(false))
+                .count()
         })
-        .unwrap_or_default();
+        .unwrap_or(0);
 
     let header = format!(
         "100 {}{}:",
@@ -232,23 +228,18 @@ pub fn format_waybar(
         format!("{}: {:.3} ({:.3}){}", c, v, 10000. / v, history)
     }));
 
-    let class = if let Some(comparisons) = &history_comparisons {
-        Some(
-            if comparisons
-                .iter()
-                .any(|(_, comparison)| comparison.map(|value| value.matched).unwrap_or(false))
-            {
-                "history-alert"
-            } else {
-                "normal"
-            },
-        )
+    let class = if history_comparisons.is_some() {
+        Some(if alert_count > 0 {
+            "history-alert"
+        } else {
+            "normal"
+        })
     } else {
         None
     };
 
     let output = WaybarOutput {
-        text: first,
+        text: alert_count.to_string(),
         tooltip: tooltip_lines.join("\n"),
         class,
     };
@@ -400,13 +391,12 @@ mod tests {
         let json: serde_json::Value = serde_json::from_str(&output).expect("valid JSON");
 
         assert_eq!(json["class"], "history-alert");
-        assert!(json["text"].as_str().unwrap().contains("↑"));
-        assert!(json["text"].as_str().unwrap().contains("100.0%"));
+        assert_eq!(json["text"], "1");
         assert!(!json["tooltip"].as_str().unwrap().contains("history:"));
     }
 
     #[test]
-    fn waybar_displays_rank_for_every_currency_and_alerts_on_any_match() {
+    fn waybar_shows_alert_count_and_currency_ranks_in_tooltip() {
         let current = entry_with_currencies(4, 0.5, 4.0);
         let history = vec![
             entry_with_currencies(1, 1.0, 1.0),
@@ -426,13 +416,34 @@ mod tests {
         let text = json["text"].as_str().unwrap();
         let tooltip = json["tooltip"].as_str().unwrap();
 
-        assert!(text.starts_with("JPY:"));
-        assert!(text.contains("↓"));
-        assert!(text.contains("0.0%"));
+        assert_eq!(text, "1");
         assert!(tooltip.contains("JPY: 400.000 (25.000)"));
         assert!(tooltip.contains("↓"));
         assert!(tooltip.contains("EUR: 50.000 (200.000)"));
         assert!(tooltip.contains("100.0%"));
+        assert_eq!(json["class"], "history-alert");
+    }
+
+    #[test]
+    fn waybar_counts_each_currency_that_matches_the_alert() {
+        let current = entry_with_currencies(4, 0.5, 0.5);
+        let history = vec![
+            entry_with_currencies(1, 1.0, 1.0),
+            entry_with_currencies(2, 2.0, 2.0),
+            entry_with_currencies(3, 3.0, 3.0),
+            current.clone(),
+        ];
+        let output = format_waybar(
+            &current,
+            &history,
+            "USD",
+            &Some(vec!["EUR".to_string(), "JPY".to_string()]),
+            Some(&config(HistoryDirection::Low)),
+        )
+        .expect("Waybar output should be valid");
+        let json: serde_json::Value = serde_json::from_str(&output).expect("valid JSON");
+
+        assert_eq!(json["text"], "2");
         assert_eq!(json["class"], "history-alert");
     }
 
@@ -475,6 +486,21 @@ mod tests {
         .expect("notification output should be valid");
 
         assert!(notification.is_empty());
+    }
+
+    #[test]
+    fn terminal_preserves_output_filter_order() {
+        let current = entry_with_currencies(1, 0.5, 4.0);
+        let terminal = format_terminal(
+            &current,
+            &[],
+            "USD",
+            &Some(vec!["USD".to_string(), "JPY".to_string()]),
+            None,
+        )
+        .expect("terminal output should be valid");
+
+        assert!(terminal.find("  USD:").unwrap() < terminal.find("  JPY:").unwrap());
     }
 
     fn entry_with_currencies(timestamp: u64, eur: f64, jpy: f64) -> CacheEntry {
