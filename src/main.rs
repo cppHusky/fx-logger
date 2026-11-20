@@ -69,7 +69,7 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Command {
-    #[command(about = "get the output from cache. do not update cash rate")]
+    #[command(about = "get the latest stored rates. do not update cash rate")]
     Get {
         #[arg(short = 'b', long = "base")]
         base: Option<String>,
@@ -93,7 +93,7 @@ enum Command {
         history_days: Option<u64>,
     },
 
-    #[command(about = "fetch current cash rate from API and store into cache")]
+    #[command(about = "fetch current cash rate from API and store in PostgreSQL")]
     Fetch,
 }
 

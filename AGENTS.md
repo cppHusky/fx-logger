@@ -198,12 +198,12 @@ Here is an example man page:
 
 ```
 NAME
-    cash-rate-logger - cash rate with cache
+    fx-logger - foreign exchange rate logger
 
 SYNOPSIS
-    cash-rate-logger [get] [OPTION]...
+    fx-logger [get] [OPTION]...
 
-    cash-rate-logger fetch [OPTION]...
+    fx-logger fetch [OPTION]...
 
 DESCRIPTION
     This command fetches info from Open Exchange Rates with your own App ID, and returns how much 100 "base currency" can convert to the currency you care.
