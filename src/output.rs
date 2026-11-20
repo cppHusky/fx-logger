@@ -263,7 +263,7 @@ pub fn format_notification(
     history_config: Option<&HistoryConfig>,
 ) -> anyhow::Result<String> {
     let config = history_config.ok_or_else(|| {
-        anyhow::anyhow!("--notification requires history direction, percent, and days settings")
+        anyhow::anyhow!("output style ntfy requires history direction, percent, and days settings")
     })?;
     let filter = output_filter
         .as_ref()
@@ -455,7 +455,7 @@ mod tests {
         .expect("notification output should be valid");
 
         assert!(notification.contains("The USD to EUR currency rate is lower than 100.0%"));
-        assert!(!notification.contains("# Cash Rate Notice"));
+        assert!(!notification.contains("# FX Rate Notice"));
         assert!(!notification.contains("alert threshold"));
         assert!(!notification.contains("The USD to JPY currency rate"));
     }

@@ -40,11 +40,13 @@ struct Cli {
     #[arg(short = 'c', long = "config", help = "the config file you want to use")]
     config: Option<String>,
 
-    #[arg(long = "waybar", help = "output as waybar tooltip JSON")]
-    waybar: bool,
-
-    #[arg(long = "notification", help = "output a system notification message")]
-    notification: bool,
+    #[arg(
+        short = 's',
+        long = "output-style",
+        value_enum,
+        help = "select the output format"
+    )]
+    output_style: Option<OutputStyle>,
 
     #[arg(
         long = "history-direction",
@@ -78,11 +80,8 @@ enum Command {
         #[arg(short = 'c', long = "config")]
         config: Option<String>,
 
-        #[arg(long = "waybar")]
-        waybar: bool,
-
-        #[arg(long = "notification")]
-        notification: bool,
+        #[arg(short = 's', long = "output-style", value_enum)]
+        output_style: Option<OutputStyle>,
 
         #[arg(long = "history-direction", visible_alias = "history", value_enum)]
         history_direction: Option<HistoryDirection>,
@@ -113,11 +112,10 @@ fn main() -> anyhow::Result<()> {
             base,
             output,
             config,
-            waybar,
+            output_style,
             history_direction,
             history_percent,
             history_days,
-            notification,
         }) => {
             let cfg = config::Config::load(
                 first_some(base.clone(), cli.base.clone()),
@@ -129,8 +127,7 @@ fn main() -> anyhow::Result<()> {
             )?;
             run_get(
                 &cfg,
-                *waybar || cli.waybar,
-                *notification || cli.notification,
+                first_some(*output_style, cli.output_style).unwrap_or(OutputStyle::Terminal),
             )?;
         }
         None => {
@@ -142,7 +139,7 @@ fn main() -> anyhow::Result<()> {
                 cli.history_percent,
                 cli.history_direction,
             )?;
-            run_get(&cfg, cli.waybar, cli.notification)?;
+            run_get(&cfg, cli.output_style.unwrap_or(OutputStyle::Terminal))?;
         }
     }
 
@@ -153,48 +150,50 @@ fn first_some<T>(a: Option<T>, b: Option<T>) -> Option<T> {
     a.or(b)
 }
 
-fn run_get(cfg: &config::Config, waybar: bool, notification: bool) -> anyhow::Result<()> {
+fn run_get(cfg: &config::Config, style: OutputStyle) -> anyhow::Result<()> {
     let history = cache::get_history()?;
     let entry = history
         .last()
         .cloned()
         .context("no cached data found. run 'fetch' first")?;
 
-    if waybar && notification {
-        anyhow::bail!("--waybar and --notification cannot be used together");
-    } else if notification {
-        print!(
-            "{}",
-            output::format_notification(
-                &entry,
-                &history,
-                &cfg.base,
-                &cfg.output,
-                cfg.history.as_ref(),
-            )?
-        );
-    } else if waybar {
-        print!(
-            "{}",
-            output::format_waybar(
-                &entry,
-                &history,
-                &cfg.base,
-                &cfg.output,
-                cfg.history.as_ref(),
-            )?
-        );
-    } else {
-        print!(
-            "{}",
-            output::format_terminal(
-                &entry,
-                &history,
-                &cfg.base,
-                &cfg.output,
-                cfg.history.as_ref(),
-            )?
-        );
+    match style {
+        OutputStyle::Ntfy => {
+            print!(
+                "{}",
+                output::format_notification(
+                    &entry,
+                    &history,
+                    &cfg.base,
+                    &cfg.output,
+                    cfg.history.as_ref(),
+                )?
+            );
+        }
+        OutputStyle::Waybar => {
+            print!(
+                "{}",
+                output::format_waybar(
+                    &entry,
+                    &history,
+                    &cfg.base,
+                    &cfg.output,
+                    cfg.history.as_ref(),
+                )?
+            );
+        }
+        OutputStyle::Terminal => {
+            print!(
+                "{}",
+                output::format_terminal(
+                    &entry,
+                    &history,
+                    &cfg.base,
+                    &cfg.output,
+                    cfg.history.as_ref(),
+                )?
+            );
+        }
     }
 
     Ok(())
