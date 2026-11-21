@@ -228,7 +228,11 @@ But please notice that if you send too many notifications you may run into the [
 
 ## From my ntfy server
 
-**TL;DR: [Install ntfy APP](https://docs.ntfy.sh/#step-1-get-the-app). Determine your target currency TGT and source currency SRC. Subscribe to channel `${TGT}-${SRC}` with my server name `https://fx.cpphusky.xyz`.** From now on, whenever the currency rate is lower than 95% of observations in past 30 days, you would get notified.
+**TL;DR**:
+1. [Install ntfy APP](https://docs.ntfy.sh/#step-1-get-the-app).
+2. Determine your target currency TGT and source currency SRC.
+3. Subscribe to channel `${TGT}-${SRC}` with my server name `https://fx.cpphusky.xyz`.
+From now on, whenever the currency rate is lower than 95% of observations in past 30 days, you would get notified.
 
 There are 8 currencies supported now. Each pair of currencies can be subscribed.
 - AUD # Australian Dollar
