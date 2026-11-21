@@ -4,17 +4,17 @@ Want to travel around the world? Or living abroad?
 
 You may care about the best time to exchange your money. And when it comes, you want to be notified instantly?
 
-After moving to Japan, I had taken a lot of time to watch the JPY:CNY exchange rate, attempting to find a lower rate and exchange my money.
+After moving to Japan, I spent a lot of time to watch the JPY:CNY exchange rate, attempting to find a lower rate and exchange my money.
 
-But later I was getting bored to that job, so I wrote this program, `fx-logger` to help me watch the history data, and decide when to make foreign exchange (FX).
+But later I got bored to that job, so I wrote this program, `fx-logger` to help me watch the history data, and decide when to make foreign exchange (FX).
 
 You can feel free to [use this binary in the local machine](#usage), or subscribe it with [ntfy](https://ntfy.sh) APP [from my self-hosted server](#from-my-ntfy-server).
 
-Please notice that this project is **NOT intended for investment**. It just analyses history data and tells you current rate is better than a few days ago, but it doesn't predicate the future.
+Please note that this project is **NOT intended for investment**. It just analyses history data and tells you current rate is better than a few days ago, but it doesn't predict the future.
 
-## how it works
+## How it works
 
-[Open exchange rates](https://openexchangerates.org/) provides a simple API with live FX rates. For free plan, an account can get hourly updated FX rates with at most 1000 queries per month. It's enough for us if we query once an hour.
+[Open Exchange Rates](https://openexchangerates.org/) provides a simple API with live FX rates. On the free plan, an account can get hourly updated FX rates with at most 1000 queries per month. It's enough for us if we query once an hour.
 
 `fx-logger` fetches the latest FX rates from it, and stores them in a [PostgreSQL](https://www.postgresql.org/) database. See [Database](#database) for more information.
 
@@ -42,7 +42,7 @@ From now on you can [connect it from `fx-logger`](#fetch).
 
 ### `fetch`
 
-Use `fetch` to get the latest rates from Open exchange rates, and then store it into PostgreSQL.
+Use `fetch` to get the latest rates from Open Exchange Rates, and then store it into PostgreSQL.
 
 You must set the following environment variables:
 - `OPEN_EXCHANGE_RATE_APP_ID`. Just create it in [Dashboard](https://openexchangerates.org/account/app-ids).
@@ -64,13 +64,13 @@ You must set the `FX_DATABASE_URL`.
 
 The following options are supported (the currency names must be uppercase [ISO 4217 currency codes](https://en.wikipedia.org/wiki/ISO_4217#List_of_ISO_4217_currency_codes)):
 
-- `-b, --base`. The default base currency was `USD`. `fx-logger` will evaluate how much it takes in the `--output` currencies to afford 100 `--base` currency.
+- `-b, --base`. The default base currency is `USD`. `fx-logger` will evaluate how much it takes in the `--output` currencies to afford 100 `--base` currency.
 - `-o, --output`. A comma-separated list of currencies. By default `fx-logger` will output all currencies.
 - `-s, --output-style`. The default value is `terminal` for human-readable output. You can choose another style like `waybar`, `ntfy`, etc, to [integrate with other tools](#integrate-with-other-tools).
 - `--history-direction`. Can be `high` or `low` depending on what you want. If you want the `--output` currencies to become cheaper, use `high`.
 - `--history-percent`. The threshold of **alert** (in percentage). For different `--output-style` the form of **alert** can be different too.
 - `--history-days`. How many days of FX rates `fx-logger` should use for comparison.
-- `-c, --config`. You can make a TOML file and write you common used config in it, then use it with `--config`, like this:
+- `-c, --config`. You can make a TOML file and write you commonly used settings in it, then use it with `--config`, like this:
 ```toml
 base="CNY"
 output=["JPY","USD"]
@@ -91,7 +91,7 @@ Notice that `terminal` doesn't output any **alert**.
 
 ## Integrate with other tools
 
-You can run `fx-logger` in everywhere, output as different styles and integrate with many other tools, such as:
+You can run `fx-logger` in anywhere, output as different styles and integrate with many other tools, such as:
 - [Waybar](#waybar)
 - [Libnotify](#libnotify)
 - [ntfy.sh](#ntfy-sh)
@@ -122,8 +122,11 @@ You need to add a `custom/fx` module in [waybar config file](https://github.com/
     },
 ```
 
-And add styles for that in styles.css:
+And add styles for that in styles.css (feel free to use any style you want):
 ```css
+#custom-fx.normal {
+    color: #f0f0ff;
+}
 #custom-fx.history-alert {
     color: #07e229;
 }
@@ -170,11 +173,11 @@ Set `--output-style ntfy` if you want to use it for `ntfy.sh`. You can use the n
 
 ```bash
 while read line; do
-    curl -sSL "https://ntfy.sh/${CHANNEL}"\
+    curl -fsSL "https://ntfy.sh/${CHANNEL}"\
         -H 'Title: FX Alert'\
         -H 'Tags: partying_face'\
         -d "${line}"
-done <<< "$(fx logger get -o JPY,CNY,EUR,GBP -c ~/.config/fx-logger.toml -s ntfy)"
+done <<< "$(fx-logger get -o JPY,CNY,EUR,GBP -c ~/.config/fx-logger.toml -s ntfy)"
 ```
 
 An advanced way is to separate different pairs of currencies in different channels. For example, here is my script used in [my ntfy server](#from-my-ntfy-server):
@@ -245,24 +248,24 @@ Additionally, If you want to follow the maintenance notifications, subscribe to 
 
 #### My currency is not supported.
 
-When I support $N$ currencies, the maximum number of messages per run could be $\frac{N(N-1)}/2$.
+When I support $N$ currencies, the maximum number of messages per run could be $\frac{N(N-1)}2$.
 
 It's not too heavy to handle so many messages for my self-hosted server, even if I support all 172 currencies.
 
-However... In order to support [iOS instant notifications](https://docs.ntfy.sh/config/#ios-instant-notifications), I have to forward so called `poll_request` to the offical `ntfy.sh` server. As a result, each FX message on my server will cause a `poll_request` message on offical server, and I have to consider the [rate limits](https://docs.ntfy.sh/publish/#limitations) of that.
+However... In order to support [iOS instant notifications](https://docs.ntfy.sh/config/#ios-instant-notifications), I have to forward so called `poll_request` to the official `ntfy.sh` server. As a result, each FX message on my server will cause a `poll_request` message on official server, and I have to consider the [rate limits](https://docs.ntfy.sh/publish/#limitations) of that.
 
 It's not realistic to support all currencies, but add a few of them is also considerable if someone really wants. Please tell me in the [GitHub Issue](https://github.com/cppHusky/fx-logger/issues).
 
-#### Consider supporing i18n?
+#### Consider supporting i18n?
 
 I want to do it, but it's impossible. I cannot filter the subscribers and send notifications in different languages.
 
 The only way is to separate different languages into different channel, but you can see, the number of messages would explode and reach the rate limits.
 
-If anyone have great idea to make it, tell me please.
+If anyone has great idea to make it, tell me please.
 
-#### I want SRC to be cheaper, but TGT-SRC notifies when it's higher
+#### I want SRC to be cheaper, but TGT-SRC notifies when SRC is higher
 
 Subscribe the channel `SRC-TGT` instead.
 
-Hoestly, I suppose the `TGT-SRC` subscribers want to pay `SRC` and buy `TGT`, so only send notifications when `TGT` becomes cheaper. Actually, buy `TGT` when it higher is not wise.
+Honestly, I suppose the `TGT-SRC` subscribers want to pay `SRC` and buy `TGT`, so only send notifications when `TGT` becomes cheaper. Actually, buy `TGT` when it higher is not wise.
