@@ -8,7 +8,7 @@ After moving to Japan, I spent a lot of time to watch the JPY:CNY exchange rate,
 
 But later I got bored to that job, so I wrote this program, `fx-logger` to help me watch the history data, and decide when to make foreign exchange (FX).
 
-You can feel free to [use this binary in the local machine](#usage), or subscribe it with [ntfy](https://ntfy.sh) APP [from my self-hosted server](#from-my-ntfy-server).
+You can feel free to [use this binary in the local machine](#usage), or subscribe it with [ntfy](https://ntfy.sh) App [from my self-hosted server](#from-my-ntfy-server).
 
 Please note that this project is **NOT intended for investment**. It just analyses history data and tells you current rate is better than a few days ago, but it doesn't predict the future.
 
@@ -228,21 +228,44 @@ But please notice that if you send too many notifications you may run into the [
 
 ## From my ntfy server
 
-**TL;DR**:
-1. [Install ntfy APP](https://docs.ntfy.sh/#step-1-get-the-app).
+### With ntfy App
+
+1. [Install ntfy App](https://docs.ntfy.sh/#step-1-get-the-app).
 2. Determine your target currency TGT and source currency SRC.
 3. Subscribe to channel `${TGT}-${SRC}` with my server name `https://fx.cpphusky.xyz`.
+
 From now on, whenever the currency rate is lower than 95% of observations in past 30 days, you would get notified.
 
-There are 8 currencies supported now. Each pair of currencies can be subscribed.
-- AUD # Australian Dollar
-- CNY # Chinese Yuan
-- EUR # Euro
-- GBP # British Pound
-- JPY # Japanese Yen
-- KRW # South Korean Won
-- SGD # Singapore Dollar
-- USD # US Dollar
+### Without installing ntfy App
+
+You can also use Web App to receive notifications. The steps are a little different for different platforms.
+
+For desktop users:
+1. [Open FX Web App](https://fx.cpphusky.xyz/app) with Chrome, Firefox, Edge, or Opera.
+2. Subscribe to topics you want.
+3. Allow the notification permission in the browser, and enable the [background notifications](https://docs.ntfy.sh/subscribe/web/?h=background#background-notifications) in the [settings](https://fx.cpphusky.xyz/settings), so that you can receive the notifications without keeping this tab open.
+
+For iOS users:
+1. [Open FX Web App](https://fx.cpphusky.xyz/app) with Safari.
+2. Click the Share icon and add it to home screen as Web App.
+3. In the Web App, enable notifications of the Web App, and subscribe to topics you want.
+
+For Android users:
+1. [Open FX Web App](https://fx.cpphusky.xyz/app) with Chrome or Firefox.
+2. [Subscribe to topics you want.
+3. Allow the notification permission in the browser, and enable the [background notifications](https://docs.ntfy.sh/subscribe/web/?h=background#background-notifications) in the [settings](https://fx.cpphusky.xyz/settings), so that you can receive the notifications without keeping this browser open.
+
+### Supported currencies
+
+There are 8 currencies supported now. Each pair of two currencies `${TGT}-${SRC}` can be subscribed.
+- AUD
+- CNY
+- EUR
+- GBP
+- JPY
+- KRW
+- SGD
+- USD
 
 > I'm too stingy to buy a VPS, so I run the server on my PC through [Cloudflare Tunnel](https://developers.cloudflare.com/tunnel/). My PC is usually UP 24h a day, but I cannot guarantee that. Apologize for the possible unreliability.
 
@@ -250,7 +273,7 @@ Additionally, If you want to follow the maintenance notifications, subscribe to 
 
 ### Possible Q&A about my ntfy server
 
-#### My currency is not supported.
+#### My currency is not supported
 
 When I support $N$ currencies, the maximum number of messages per run could be $\frac{N(N-1)}2$.
 
@@ -273,3 +296,7 @@ If anyone has great idea to make it, tell me please.
 Subscribe the channel `SRC-TGT` instead.
 
 Honestly, I suppose the `TGT-SRC` subscribers want to pay `SRC` and buy `TGT`, so only send notifications when `TGT` becomes cheaper. Actually, buy `TGT` when it higher is not wise.
+
+#### I have a better algorithm
+
+My algorithm is not quite bad, but is not quite good too. If you have better idea, welcome to raise it in the [Issues](https://github.com/cppHusky/fx-logger/issues).
