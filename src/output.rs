@@ -258,9 +258,9 @@ pub fn format_notification(
     })?;
     let filter = output_filter
         .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("--notification requires at least one output currency"))?;
+        .ok_or_else(|| anyhow::anyhow!("ntfy style output requires at least one output currency"))?;
     if filter.is_empty() {
-        anyhow::bail!("--notification requires at least one output currency");
+        anyhow::bail!("ntfy style output requires at least one output currency");
     }
 
     let rates = compute_rates(entry, base, output_filter)?;
