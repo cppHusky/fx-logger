@@ -71,6 +71,33 @@ fn converted_rate(entry: &CacheEntry, base: &str, currency: &str) -> Option<f64>
     converted.is_finite().then_some(converted)
 }
 
+fn unchanged_for_latest_three(
+    current: &CacheEntry,
+    history: &[CacheEntry],
+    base: &str,
+    currency: &str,
+) -> bool {
+    let Some(current_value) = converted_rate(current, base, currency) else {
+        return false;
+    };
+
+    let mut previous: Vec<_> = history
+        .iter()
+        .filter(|entry| entry.timestamp < current.timestamp)
+        .collect();
+    previous.sort_by_key(|entry| std::cmp::Reverse(entry.timestamp));
+
+    let mut values = vec![current_value];
+    for entry in previous.into_iter().take(2) {
+        let Some(value) = converted_rate(entry, base, currency) else {
+            return false;
+        };
+        values.push(value);
+    }
+
+    values.len() == 3 && values.iter().all(|value| *value == values[0])
+}
+
 fn compare_history(
     current: &CacheEntry,
     history: &[CacheEntry],
@@ -252,13 +279,14 @@ pub fn format_notification(
     base: &str,
     output_filter: &Option<Vec<String>>,
     history_config: Option<&HistoryConfig>,
+    suppress_equal: bool,
 ) -> anyhow::Result<String> {
     let config = history_config.ok_or_else(|| {
         anyhow::anyhow!("output style ntfy requires history direction, percent, and days settings")
     })?;
-    let filter = output_filter
-        .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("ntfy style output requires at least one output currency"))?;
+    let filter = output_filter.as_ref().ok_or_else(|| {
+        anyhow::anyhow!("ntfy style output requires at least one output currency")
+    })?;
     if filter.is_empty() {
         anyhow::bail!("ntfy style output requires at least one output currency");
     }
@@ -273,6 +301,9 @@ pub fn format_notification(
         .filter_map(|(currency, value)| {
             let comparison = compare_history(entry, history, base, currency, config)?;
             if !comparison.matched {
+                return None;
+            }
+            if suppress_equal && unchanged_for_latest_three(entry, history, base, currency) {
                 return None;
             }
 
@@ -462,10 +493,11 @@ mod tests {
             "USD",
             &Some(vec!["JPY".to_string(), "EUR".to_string()]),
             Some(&config(HistoryDirection::Low)),
+            false,
         )
         .expect("notification output should be valid");
 
-        assert!(notification.contains("The USD to EUR currency rate is lower than 100.0%"));
+        assert!(notification.contains("The USD to EUR rate is lower than 100.0%"));
         assert!(!notification.contains("# FX Rate Notice"));
         assert!(!notification.contains("alert threshold"));
         assert!(!notification.contains("The USD to JPY currency rate"));
@@ -482,10 +514,69 @@ mod tests {
             "USD",
             &Some(vec!["EUR".to_string()]),
             Some(&config(HistoryDirection::Low)),
+            false,
         )
         .expect("notification output should be valid");
 
         assert!(notification.is_empty());
+    }
+
+    #[test]
+    fn notification_is_suppressed_when_latest_three_pair_rates_match() {
+        let current = entry(4, 0.5);
+        let history = vec![entry(1, 1.0), entry(2, 0.5), entry(3, 0.5), current.clone()];
+        let mut config = config(HistoryDirection::Low);
+        config.percent = 30.0;
+
+        let notification = format_notification(
+            &current,
+            &history,
+            "USD",
+            &Some(vec!["EUR".to_string()]),
+            Some(&config),
+            true,
+        )
+        .expect("notification output should be valid");
+
+        assert!(notification.is_empty());
+    }
+
+    #[test]
+    fn notification_keeps_existing_behavior_without_suppress_equal() {
+        let current = entry(4, 0.5);
+        let history = vec![entry(1, 1.0), entry(2, 0.5), entry(3, 0.5), current.clone()];
+        let mut config = config(HistoryDirection::Low);
+        config.percent = 30.0;
+
+        let notification = format_notification(
+            &current,
+            &history,
+            "USD",
+            &Some(vec!["EUR".to_string()]),
+            Some(&config),
+            false,
+        )
+        .expect("notification output should be valid");
+
+        assert!(!notification.is_empty());
+    }
+
+    #[test]
+    fn notification_is_not_suppressed_with_fewer_than_three_records() {
+        let current = entry(2, 0.5);
+        let history = vec![entry(1, 1.0), current.clone()];
+
+        let notification = format_notification(
+            &current,
+            &history,
+            "USD",
+            &Some(vec!["EUR".to_string()]),
+            Some(&config(HistoryDirection::Low)),
+            true,
+        )
+        .expect("notification output should be valid");
+
+        assert!(!notification.is_empty());
     }
 
     #[test]

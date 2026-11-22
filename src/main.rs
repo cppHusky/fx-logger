@@ -65,6 +65,12 @@ struct Cli {
 
     #[arg(long = "history-days", help = "number of previous days to compare")]
     history_days: Option<u64>,
+
+    #[arg(
+        long = "suppress-equal",
+        help = "suppress ntfy alerts when the latest three pair rates are equal"
+    )]
+    suppress_equal: bool,
 }
 
 #[derive(Subcommand, Debug)]
@@ -91,6 +97,12 @@ enum Command {
 
         #[arg(long = "history-days")]
         history_days: Option<u64>,
+
+        #[arg(
+            long = "suppress-equal",
+            help = "suppress ntfy alerts when the latest three pair rates are equal"
+        )]
+        suppress_equal: bool,
     },
 
     #[command(about = "fetch current cash rate from API and store in PostgreSQL")]
@@ -116,6 +128,7 @@ fn main() -> anyhow::Result<()> {
             history_direction,
             history_percent,
             history_days,
+            suppress_equal,
         }) => {
             let cfg = config::Config::load(
                 first_some(base.clone(), cli.base.clone()),
@@ -128,6 +141,7 @@ fn main() -> anyhow::Result<()> {
             run_get(
                 &cfg,
                 first_some(*output_style, cli.output_style).unwrap_or(OutputStyle::Terminal),
+                *suppress_equal || cli.suppress_equal,
             )?;
         }
         None => {
@@ -139,7 +153,11 @@ fn main() -> anyhow::Result<()> {
                 cli.history_percent,
                 cli.history_direction,
             )?;
-            run_get(&cfg, cli.output_style.unwrap_or(OutputStyle::Terminal))?;
+            run_get(
+                &cfg,
+                cli.output_style.unwrap_or(OutputStyle::Terminal),
+                cli.suppress_equal,
+            )?;
         }
     }
 
@@ -150,7 +168,7 @@ fn first_some<T>(a: Option<T>, b: Option<T>) -> Option<T> {
     a.or(b)
 }
 
-fn run_get(cfg: &config::Config, style: OutputStyle) -> anyhow::Result<()> {
+fn run_get(cfg: &config::Config, style: OutputStyle, suppress_equal: bool) -> anyhow::Result<()> {
     let history = cache::get_history()?;
     let entry = history
         .last()
@@ -167,6 +185,7 @@ fn run_get(cfg: &config::Config, style: OutputStyle) -> anyhow::Result<()> {
                     &cfg.base,
                     &cfg.output,
                     cfg.history.as_ref(),
+                    suppress_equal,
                 )?
             );
         }

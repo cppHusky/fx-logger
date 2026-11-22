@@ -89,12 +89,18 @@ $ fx-logger -b CNY -o USD,JPY --history-direction low --history-percent 80 --his
 
 Notice that `terminal` doesn't output any **alert**.
 
+#### `--suppress-equal` (`ntfy` style only)
+
+The cash rate will keep flat because of FX market closure on weekends and festivals. At that time, [scheduled tasks](#libnotify) send you the same rate over and over again. However, you cannot get better rate.
+
+To suppress the annoying notifications, for `ntfy` style output, you can use `--suppress-equal` to suppress the output if the latest 3 records for the currency pair are equal. If the rate changed, you can still get notified.
+
 ## Integrate with other tools
 
 You can run `fx-logger` in anywhere, output as different styles and integrate with many other tools, such as:
 - [Waybar](#waybar)
 - [Libnotify](#libnotify)
-- [ntfy.sh](#ntfy-sh)
+- [ntfy.sh](#ntfysh)
 
 If you want to add a new output style, create a PR please.
 
@@ -195,31 +201,32 @@ SGD # Singapore Dollar
 USD # US Dollar
 )
 send_alert(){
-	local target=$1
-	local message=$2
-	[[ -z "${message}" ]] && return 0
-	local src=$(echo "${message}" | awk '{print $4;}')
-	[[ "${target}" == "${src}" ]] && return 0
-	local channel="${target}-${src}"
-	curl -fsSL "https://fx.cpphusky.xyz/${channel}"\
-		-H "Authorization:Bearer ${NTFY_AUTH_TOKEN}"\
-		-H "Title:FX Alert: ${channel}"\
-		-H 'Tags:partying_face'\
-		-d "${message}"
-	echo "[$(date -Is)] $((++TOTAL_SENT)): ${target}-${src}" >> "${LOG_FILE}"
+    local target=$1
+    local message=$2
+    [[ -z "${message}" ]] && return 0
+    local src=$(echo "${message}" | awk '{print $4;}')
+    [[ "${target}" == "${src}" ]] && return 0
+    local channel="${target}-${src}"
+    curl -fsSL "https://fx.cpphusky.xyz/${channel}"\
+        -H "Authorization:Bearer ${NTFY_AUTH_TOKEN}"\
+        -H "Title:FX Alert: ${channel}"\
+        -H 'Tags:partying_face'\
+        -d "${message}"
+    echo "[$(date -Is)] $((++TOTAL_SENT)): ${target}-${src}" >> "${LOG_FILE}"
 }
 for target in "${CURRENCIES[@]}"; do
-	messages=$(${HOME}/.cargo/bin/fx-logger get\
-		-b ${target}\
-		-o $(echo "${CURRENCIES[@]}" | sed 's/ /,/g')\
-		--history-direction low\
-		--history-percent 95\
-		--history-days 30\
-		-s ntfy
-	)
-	while read message; do
-		send_alert "${target}" "${message}"
-	done <<< "${messages}"
+    messages=$(${HOME}/.cargo/bin/fx-logger get\
+        -b ${target}\
+        -o $(echo "${CURRENCIES[@]}" | sed 's/ /,/g')\
+        --history-direction low\
+        --history-percent 95\
+        --history-days 30\
+        -s ntfy\
+        --suppress-equal
+    )
+    while read message; do
+        send_alert "${target}" "${message}"
+    done <<< "${messages}"
 done
 echo "[$(date -Is)] Sent ${TOTAL_SENT} messages." >> "${LOG_FILE}"
 ```
