@@ -228,7 +228,15 @@ But please notice that if you send too many notifications you may run into the [
 
 ## From my ntfy server
 
-### With ntfy App
+You can subscribe through ntfy app or browsers.
+
+|Platform|Notification preview|
+|---|---|
+|GNOME desktop with Firefox|![](./assets/gnome-firefox.png)|
+|Android with Chrome|![](./assets/android-chrome.png)|
+|iOS with Safari|![](./assets/ios-safari.jpg)|
+
+### With ntfy App (mobile devices only)
 
 1. [Install ntfy App](https://docs.ntfy.sh/#step-1-get-the-app).
 2. Determine your target currency TGT and source currency SRC.
@@ -252,7 +260,7 @@ For iOS users:
 
 For Android users:
 1. [Open FX Web App](https://fx.cpphusky.xyz/app) with Chrome or Firefox.
-2. [Subscribe to topics you want.
+2. Subscribe to topics you want.
 3. Allow the notification permission in the browser, and enable the [background notifications](https://docs.ntfy.sh/subscribe/web/?h=background#background-notifications) in the [settings](https://fx.cpphusky.xyz/settings), so that you can receive the notifications without keeping this browser open.
 
 ### Supported currencies
@@ -269,7 +277,7 @@ There are 8 currencies supported now. Each pair of two currencies `${TGT}-${SRC}
 
 > I'm too stingy to buy a VPS, so I run the server on my PC through [Cloudflare Tunnel](https://developers.cloudflare.com/tunnel/). My PC is usually UP 24h a day, but I cannot guarantee that. Apologize for the possible unreliability.
 
-Additionally, If you want to follow the maintenance notifications, subscribe to `announcement` channel in `https://fx.cpphusky.xyz` please.
+Additionally, If you want to follow the maintenance notifications, subscribe to [announcement](https://fx.cpphusky.xyz/announcement) please.
 
 ### Possible Q&A about my ntfy server
 
@@ -295,7 +303,7 @@ If anyone has great idea to make it, tell me please.
 
 Subscribe the channel `SRC-TGT` instead.
 
-Honestly, I suppose the `TGT-SRC` subscribers want to pay `SRC` and buy `TGT`, so only send notifications when `TGT` becomes cheaper. Actually, buy `TGT` when it higher is not wise.
+Honestly, I suppose the `TGT-SRC` subscribers want to pay `SRC` and buy `TGT`, so only send notifications when `TGT` becomes cheaper. Actually, buy `TGT` when it is higher is not wise.
 
 #### I have a better algorithm
 
