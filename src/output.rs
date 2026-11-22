@@ -277,7 +277,7 @@ pub fn format_notification(
             }
 
             Some(format!(
-                "The {} to {} currency rate is {} than {:.1}% of observations in the past {} days. Current value: 100 {} = {:.3} {}.",
+                "The {} to {} rate is {} than {:.1}% of data in the past {} days. Current value: 100 {} = {:.3} {}.",
                 base,
                 currency,
                 direction_word(config.direction),
