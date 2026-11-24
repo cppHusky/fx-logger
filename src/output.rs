@@ -1,11 +1,20 @@
 use std::collections::HashSet;
 
+use clap::ValueEnum;
 use serde::Serialize;
 
 use crate::cache::CacheEntry;
 use crate::config::{HistoryConfig, HistoryDirection};
 
 const SECONDS_PER_DAY: u64 = 24 * 60 * 60;
+const SUPPRESSION_WINDOW_SECONDS: u64 = 2 * 60 * 60 + 30 * 60;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+pub enum SuppressLevel {
+    Equal,
+    #[value(name = "not-lower")]
+    NotLower,
+}
 
 #[derive(Serialize)]
 struct WaybarOutput {
@@ -71,7 +80,8 @@ fn converted_rate(entry: &CacheEntry, base: &str, currency: &str) -> Option<f64>
     converted.is_finite().then_some(converted)
 }
 
-fn unchanged_for_latest_three(
+fn should_suppress_for_level(
+    level: SuppressLevel,
     current: &CacheEntry,
     history: &[CacheEntry],
     base: &str,
@@ -81,21 +91,26 @@ fn unchanged_for_latest_three(
         return false;
     };
 
-    let mut previous: Vec<_> = history
-        .iter()
-        .filter(|entry| entry.timestamp < current.timestamp)
-        .collect();
-    previous.sort_by_key(|entry| std::cmp::Reverse(entry.timestamp));
-
+    let window_start = current.timestamp.saturating_sub(SUPPRESSION_WINDOW_SECONDS);
     let mut values = vec![current_value];
-    for entry in previous.into_iter().take(2) {
+    for entry in history
+        .iter()
+        .filter(|entry| entry.timestamp >= window_start && entry.timestamp < current.timestamp)
+    {
         let Some(value) = converted_rate(entry, base, currency) else {
             return false;
         };
         values.push(value);
     }
 
-    values.len() == 3 && values.iter().all(|value| *value == values[0])
+    if values.len() < 3 {
+        return false;
+    }
+
+    match level {
+        SuppressLevel::Equal => values.iter().all(|value| *value == values[0]),
+        SuppressLevel::NotLower => values[1..].iter().any(|value| values[0] >= *value),
+    }
 }
 
 fn compare_history(
@@ -279,7 +294,7 @@ pub fn format_notification(
     base: &str,
     output_filter: &Option<Vec<String>>,
     history_config: Option<&HistoryConfig>,
-    suppress_equal: bool,
+    suppress_level: Option<SuppressLevel>,
 ) -> anyhow::Result<String> {
     let config = history_config.ok_or_else(|| {
         anyhow::anyhow!("output style ntfy requires history direction, percent, and days settings")
@@ -303,8 +318,10 @@ pub fn format_notification(
             if !comparison.matched {
                 return None;
             }
-            if suppress_equal && unchanged_for_latest_three(entry, history, base, currency) {
-                return None;
+            if let Some(level) = suppress_level {
+                if should_suppress_for_level(level, entry, history, base, currency) {
+                    return None;
+                }
             }
 
             Some(format!(
@@ -493,7 +510,7 @@ mod tests {
             "USD",
             &Some(vec!["JPY".to_string(), "EUR".to_string()]),
             Some(&config(HistoryDirection::Low)),
-            false,
+            None,
         )
         .expect("notification output should be valid");
 
@@ -514,7 +531,7 @@ mod tests {
             "USD",
             &Some(vec!["EUR".to_string()]),
             Some(&config(HistoryDirection::Low)),
-            false,
+            None,
         )
         .expect("notification output should be valid");
 
@@ -522,9 +539,14 @@ mod tests {
     }
 
     #[test]
-    fn notification_is_suppressed_when_latest_three_pair_rates_match() {
-        let current = entry(4, 0.5);
-        let history = vec![entry(1, 1.0), entry(2, 0.5), entry(3, 0.5), current.clone()];
+    fn notification_is_suppressed_when_recent_pair_rates_match() {
+        let current = entry(20_000, 0.5);
+        let history = vec![
+            entry(1, 1.0),
+            entry(11_001, 0.5),
+            entry(19_999, 0.5),
+            current.clone(),
+        ];
         let mut config = config(HistoryDirection::Low);
         config.percent = 30.0;
 
@@ -534,11 +556,88 @@ mod tests {
             "USD",
             &Some(vec!["EUR".to_string()]),
             Some(&config),
-            true,
+            Some(SuppressLevel::Equal),
         )
         .expect("notification output should be valid");
 
         assert!(notification.is_empty());
+    }
+
+    #[test]
+    fn not_lower_suppresses_when_current_rate_is_at_least_as_high_as_either_recent_rate() {
+        let current = entry(4, 0.8);
+        let history = vec![entry(1, 1.0), entry(2, 0.6), entry(3, 0.7)];
+
+        assert!(should_suppress_for_level(
+            SuppressLevel::NotLower,
+            &current,
+            &history,
+            "USD",
+            "EUR",
+        ));
+        assert!(!should_suppress_for_level(
+            SuppressLevel::Equal,
+            &current,
+            &history,
+            "USD",
+            "EUR",
+        ));
+    }
+
+    #[test]
+    fn not_lower_suppresses_when_current_is_below_one_but_not_both_recent_rates() {
+        let current = entry(4, 0.65);
+        let history = vec![entry(1, 1.0), entry(2, 0.6), entry(3, 0.7)];
+
+        assert!(should_suppress_for_level(
+            SuppressLevel::NotLower,
+            &current,
+            &history,
+            "USD",
+            "EUR",
+        ));
+    }
+
+    #[test]
+    fn not_lower_does_not_suppress_when_current_is_below_both_recent_rates() {
+        let current = entry(4, 0.5);
+        let history = vec![entry(1, 1.0), entry(2, 0.6), entry(3, 0.7)];
+
+        assert!(!should_suppress_for_level(
+            SuppressLevel::NotLower,
+            &current,
+            &history,
+            "USD",
+            "EUR",
+        ));
+    }
+
+    #[test]
+    fn suppression_uses_only_records_inside_the_two_and_a_half_hour_window() {
+        let current = entry(10_000, 0.5);
+        let history = vec![entry(999, 0.9), entry(1_000, 0.5), entry(9_999, 0.5)];
+
+        assert!(should_suppress_for_level(
+            SuppressLevel::Equal,
+            &current,
+            &history,
+            "USD",
+            "EUR",
+        ));
+    }
+
+    #[test]
+    fn old_records_do_not_satisfy_the_minimum_suppression_sample_count() {
+        let current = entry(20_000, 0.5);
+        let history = vec![entry(1, 0.5), entry(2, 0.5)];
+
+        assert!(!should_suppress_for_level(
+            SuppressLevel::Equal,
+            &current,
+            &history,
+            "USD",
+            "EUR",
+        ));
     }
 
     #[test]
@@ -554,7 +653,7 @@ mod tests {
             "USD",
             &Some(vec!["EUR".to_string()]),
             Some(&config),
-            false,
+            None,
         )
         .expect("notification output should be valid");
 
@@ -572,7 +671,7 @@ mod tests {
             "USD",
             &Some(vec!["EUR".to_string()]),
             Some(&config(HistoryDirection::Low)),
-            true,
+            Some(SuppressLevel::Equal),
         )
         .expect("notification output should be valid");
 

@@ -1,6 +1,6 @@
 [package]
 name = "fx-logger"
-version = "1.1.0"
+version = "1.2.0"
 authors = ["cppHusky <cpphusky@outlook.com>"]
 edition = "2021"
 description = "A PostgreSQL-backed cash rate logger"

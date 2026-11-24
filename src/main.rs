@@ -68,9 +68,16 @@ struct Cli {
 
     #[arg(
         long = "suppress-equal",
-        help = "suppress ntfy alerts when the latest three pair rates are equal"
+        help = "DEPRECATED: use --suppress-level equal"
     )]
     suppress_equal: bool,
+
+    #[arg(
+        long = "suppress-level",
+        value_enum,
+        help = "select when to suppress ntfy alerts"
+    )]
+    suppress_level: Option<output::SuppressLevel>,
 }
 
 #[derive(Subcommand, Debug)]
@@ -100,9 +107,16 @@ enum Command {
 
         #[arg(
             long = "suppress-equal",
-            help = "suppress ntfy alerts when the latest three pair rates are equal"
+            help = "DEPRECATED: use --suppress-level equal"
         )]
         suppress_equal: bool,
+
+        #[arg(
+            long = "suppress-level",
+            value_enum,
+            help = "select when to suppress ntfy alerts"
+        )]
+        suppress_level: Option<output::SuppressLevel>,
     },
 
     #[command(about = "fetch current cash rate from API and store in PostgreSQL")]
@@ -129,6 +143,7 @@ fn main() -> anyhow::Result<()> {
             history_percent,
             history_days,
             suppress_equal,
+            suppress_level,
         }) => {
             let cfg = config::Config::load(
                 first_some(base.clone(), cli.base.clone()),
@@ -138,10 +153,14 @@ fn main() -> anyhow::Result<()> {
                 first_some(*history_percent, cli.history_percent),
                 first_some(*history_direction, cli.history_direction),
             )?;
+            let suppress_level = resolve_suppress_level(
+                first_some(*suppress_level, cli.suppress_level),
+                *suppress_equal || cli.suppress_equal,
+            )?;
             run_get(
                 &cfg,
                 first_some(*output_style, cli.output_style).unwrap_or(OutputStyle::Terminal),
-                *suppress_equal || cli.suppress_equal,
+                suppress_level,
             )?;
         }
         None => {
@@ -153,10 +172,11 @@ fn main() -> anyhow::Result<()> {
                 cli.history_percent,
                 cli.history_direction,
             )?;
+            let suppress_level = resolve_suppress_level(cli.suppress_level, cli.suppress_equal)?;
             run_get(
                 &cfg,
                 cli.output_style.unwrap_or(OutputStyle::Terminal),
-                cli.suppress_equal,
+                suppress_level,
             )?;
         }
     }
@@ -168,7 +188,26 @@ fn first_some<T>(a: Option<T>, b: Option<T>) -> Option<T> {
     a.or(b)
 }
 
-fn run_get(cfg: &config::Config, style: OutputStyle, suppress_equal: bool) -> anyhow::Result<()> {
+fn resolve_suppress_level(
+    level: Option<output::SuppressLevel>,
+    legacy_suppress_equal: bool,
+) -> anyhow::Result<Option<output::SuppressLevel>> {
+    if legacy_suppress_equal {
+        eprintln!("warning: --suppress-equal is deprecated; use --suppress-level equal");
+    }
+
+    if legacy_suppress_equal && level == Some(output::SuppressLevel::NotLower) {
+        anyhow::bail!("--suppress-equal cannot be combined with --suppress-level not-lower");
+    }
+
+    Ok(level.or_else(|| legacy_suppress_equal.then_some(output::SuppressLevel::Equal)))
+}
+
+fn run_get(
+    cfg: &config::Config,
+    style: OutputStyle,
+    suppress_level: Option<output::SuppressLevel>,
+) -> anyhow::Result<()> {
     let history = cache::get_history()?;
     let entry = history
         .last()
@@ -185,7 +224,7 @@ fn run_get(cfg: &config::Config, style: OutputStyle, suppress_equal: bool) -> an
                     &cfg.base,
                     &cfg.output,
                     cfg.history.as_ref(),
-                    suppress_equal,
+                    suppress_level,
                 )?
             );
         }

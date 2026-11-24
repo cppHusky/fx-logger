@@ -70,6 +70,8 @@ The following options are supported (the currency names must be uppercase [ISO 4
 - `--history-direction`. Can be `high` or `low` depending on what you want. If you want the `--output` currencies to become cheaper, use `high`.
 - `--history-percent`. The threshold of **alert** (in percentage). For different `--output-style` the form of **alert** can be different too.
 - `--history-days`. How many days of FX rates `fx-logger` should use for comparison.
+- `--suppress-level`. Optional, `ntfy`-only suppression: `equal` suppresses when the latest three pair rates match; `not-lower` suppresses when the current rate is at least as high as either of the previous two.
+- `--suppress-equal`. Deprecated; equivalent to `--suppress-level equal`.
 - `-c, --config`. You can make a TOML file and write you commonly used settings in it, then use it with `--config`, like this:
 ```toml
 base="CNY"
@@ -89,11 +91,15 @@ $ fx-logger -b CNY -o USD,JPY --history-direction low --history-percent 80 --his
 
 Notice that `terminal` doesn't output any **alert**.
 
-#### `--suppress-equal` (`ntfy` style only)
+#### `--suppress-level` (`ntfy` style only)
 
 The cash rate will keep flat because of FX market closure on weekends and festivals. At that time, [scheduled tasks](#libnotify) send you the same rate over and over again. However, you cannot get better rate.
 
-To suppress the annoying notifications, for `ntfy` style output, you can use `--suppress-equal` to suppress the output if the latest 3 records for the currency pair are equal. If the rate changed, you can still get notified.
+Sometimes, you would get a lower rate an hour ago, but get a higher rate now. The reason is that the two rates are both match your threshold. But the higher one is useless.
+
+To suppress useless notifications, use `--suppress-level <level>` to skip alerts based on the level you use.
+- Use `--suppress-level equal` to skip notification if the current rate is equal to the data in 2.5 hours (if the server runs well, there should be 3 recent records).
+- Use `--suppress-level not-lower` to skip notification if the current rate is not lower than either of the previous data in 2.5 hours.
 
 ## Integrate with other tools
 
@@ -222,7 +228,7 @@ for target in "${CURRENCIES[@]}"; do
         --history-percent 95\
         --history-days 30\
         -s ntfy\
-        --suppress-equal
+        --suppress-level equal
     )
     while read message; do
         send_alert "${target}" "${message}"
@@ -277,8 +283,10 @@ There are 8 currencies supported now. Each pair of two currencies `${TGT}-${SRC}
 - CNY
 - EUR
 - GBP
+- HKD
 - JPY
 - KRW
+- NTD
 - SGD
 - USD
 
